@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MathKing</title>
+<meta name="description" content="MathKing — math tools.">
+<style>
+  :root{
+    --bg:#fbfbfa; --panel:#fff; --fg:#1a1a18; --muted:#6b6b66;
+    --line:#e4e4e0; --accent:#2d5fa6;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{--bg:#141414;--panel:#1c1c1b;--fg:#ededea;--muted:#9a9a94;
+          --line:#2c2c2a;--accent:#7fa9e0}
+  }
+  :root[data-theme="light"]{--bg:#fbfbfa;--panel:#fff;--fg:#1a1a18;--muted:#6b6b66;
+    --line:#e4e4e0;--accent:#2d5fa6}
+  :root[data-theme="dark"]{--bg:#141414;--panel:#1c1c1b;--fg:#ededea;--muted:#9a9a94;
+    --line:#2c2c2a;--accent:#7fa9e0}
+
+  *{box-sizing:border-box}
+  html{-webkit-text-size-adjust:100%}
+  body{
+    margin:0;min-height:100vh;background:var(--bg);color:var(--fg);
+    font:16px/1.6 ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;
+  }
+  .wrap{max-width:900px;margin:0 auto;padding:0 24px;width:100%}
+
+  header{padding:72px 0 0}
+  .mark{display:inline-flex;align-items:center;gap:11px;font-weight:660;
+        font-size:16px;letter-spacing:-.02em;margin-bottom:30px}
+  .mark svg{display:block}
+  h1{margin:0 0 14px;font-size:clamp(32px,6vw,52px);line-height:1.1;
+     letter-spacing:-.035em;font-weight:670;max-width:16ch}
+  .lede{margin:0;font-size:clamp(16px,2.2vw,18.5px);color:var(--muted);max-width:56ch}
+
+  main{flex:1;padding:44px 0 0}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+        padding:22px 24px}
+  .card h2{margin:0 0 8px;font-size:15px;font-weight:640;letter-spacing:-.01em}
+  .card p{margin:0;color:var(--muted);font-size:14.5px}
+  .card code{background:rgba(128,128,128,.14);padding:2px 6px;border-radius:5px;
+             font-size:13px}
+
+  footer{padding:40px 0 48px;color:var(--muted);font-size:13.5px}
+  footer a{color:var(--accent)}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <span class="mark">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none" aria-hidden="true">
+        <rect x="1.1" y="1.1" width="19.8" height="19.8" rx="4.6"
+              stroke="currentColor" stroke-width="1.6"/>
+        <path d="M6 8h10M11 6.2v10M6.6 15.2l3.2-3.2M15.4 15.2l-3.2-3.2"
+              stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+      MathKing
+    </span>
+    <h1>Math tools, built to be used.</h1>
+    <p class="lede">This is the starting point for mathking.pro. The site is live and
+      served from GitHub Pages — content goes here next.</p>
+  </header>
+
+  <main>
+    <div class="card">
+      <h2>Setup complete</h2>
+      <p>Domain, DNS and hosting are wired up. Edit <code>index.html</code> in the
+        <code>mathking</code> repository and the change goes live within a minute
+        or two.</p>
+    </div>
+  </main>
+
+  <footer>
+    <span>mathking.pro</span>
+  </footer>
+
+</div>
+</body>
+</html>
