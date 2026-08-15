@@ -50,6 +50,18 @@
   .card.ok{background:var(--okbg)}
   .card.bad{background:var(--badbg)}
 
+  .ops{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:0 0 18px}
+  .ops button{
+    font:inherit;padding:9px 4px 7px;border:2px solid var(--padline);background:var(--pad);
+    color:var(--ink);border-radius:14px;cursor:pointer;display:flex;flex-direction:column;
+    align-items:center;gap:1px;line-height:1.1
+  }
+  .ops button b{font-size:24px;font-weight:800}
+  .ops button span{font-size:11px;font-weight:700;letter-spacing:.03em;color:var(--muted)}
+  .ops button.on{background:#8b7cf6;border-color:#8b7cf6;color:#fff}
+  .ops button.on span{color:rgba(255,255,255,.9)}
+  .ops button:active{transform:translateY(2px)}
+
   .eq{margin:0;font-size:clamp(60px,20vw,108px);font-weight:800;letter-spacing:-.045em;
       line-height:1;font-variant-numeric:tabular-nums}
   .eq .a{color:#e5342b}
@@ -78,9 +90,13 @@
   @keyframes blink{50%{opacity:0}}
   @media (prefers-reduced-motion: reduce){ .answer .caret{animation:none} }
 
-  .feedback{min-height:30px;margin-top:10px;font-size:20px;font-weight:800}
+  .feedback{min-height:52px;margin-top:10px;font-size:20px;font-weight:800;
+            display:flex;align-items:center;justify-content:center;gap:10px}
   .feedback.ok{color:var(--ok)}
   .feedback.bad{color:var(--bad)}
+  .feedback .weq{font-size:22px;font-weight:700;opacity:.85}
+  .feedback .wans{font-size:46px;font-weight:800;letter-spacing:-.03em;line-height:1;
+                  font-variant-numeric:tabular-nums}
 
   .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
   .pad button{
@@ -139,6 +155,13 @@
   <div class="qcount" id="qcount">Question 1 of 50</div>
 
   <div class="card" id="card">
+
+    <div class="ops" id="ops" role="group" aria-label="Choose an operation">
+      <button data-op="add" class="on"><b>+</b><span>Add</span></button>
+      <button data-op="sub"><b>−</b><span>Subtract</span></button>
+      <button data-op="mul"><b>×</b><span>Multiply</span></button>
+      <button data-op="div"><b>÷</b><span>Divide</span></button>
+    </div>
 
     <div id="quiz">
       <p class="eq" id="eq" aria-live="off"></p>
@@ -230,8 +253,28 @@ function fanfare() {
 }
 
 // ---------- questions ----------
-var FACTS = [];
-for (var a = 1; a <= 9; a++) for (var b = 1; b <= 9; b++) FACTS.push([a, b]);
+// Each op stores [left, right, answer]. Subtraction and division are built as the
+// exact inverses of the addition and multiplication sets, so a student meets the
+// same number pairs both ways round.
+var OPS = {
+  add: { sign: '+', build: function () {
+    var f = []; for (var a = 1; a <= 9; a++) for (var b = 1; b <= 9; b++) f.push([a, b, a + b]);
+    return f; } },
+  sub: { sign: '−', build: function () {
+    // (a+b) - b = a  ->  minuends 2..18, never negative
+    var f = []; for (var a = 1; a <= 9; a++) for (var b = 1; b <= 9; b++) f.push([a + b, b, a]);
+    return f; } },
+  mul: { sign: '×', build: function () {
+    var f = []; for (var a = 0; a <= 9; a++) for (var b = 0; b <= 9; b++) f.push([a, b, a * b]);
+    return f; } },
+  div: { sign: '÷', build: function () {
+    // (a*b) / b = a, b starts at 1 — no division by zero
+    var f = []; for (var a = 0; a <= 9; a++) for (var b = 1; b <= 9; b++) f.push([a * b, b, a]);
+    return f; } }
+};
+
+var op = 'add';
+var FACTS = OPS[op].build();
 
 var cur = null, locked = false, finished = false;
 var entry = '';                       // the digits typed so far
@@ -252,11 +295,11 @@ function nextQuestion() {
   if (asked >= TOTAL_QUESTIONS) { finish(); return; }
   var pick;
   do { pick = FACTS[Math.floor(Math.random() * FACTS.length)]; }
-  while (cur && pick[0] === cur[0] && pick[1] === cur[1]);
+  while (cur && pick[0] === cur[0] && pick[1] === cur[1] && FACTS.length > 1);
   cur = pick;
   $('eq').innerHTML =
     '<span class="a">' + cur[0] + '</span>' +
-    '<span class="op">+</span>' +
+    '<span class="op">' + OPS[op].sign + '</span>' +
     '<span class="b">' + cur[1] + '</span>' +
     '<span class="eqs">=</span>';
   setEntry('');
@@ -275,19 +318,21 @@ function submit() {
 
   locked = true;
   asked++;
-  var want = cur[0] + cur[1];
+  var want = cur[2];
 
   if (val === want) {
     correct++;
     bell();
-    $('feedback').textContent = '✔ Correct!';
+    $('feedback').innerHTML = '✔ Correct!';
     $('feedback').className = 'feedback ok';
     $('card').className = 'card ok';
     setTimeout(nextQuestion, 700);
   } else {
     wrong++;
     horn();
-    $('feedback').textContent = '✘ ' + cur[0] + ' + ' + cur[1] + ' = ' + want;
+    $('feedback').innerHTML =
+      '<span class="weq">' + cur[0] + ' ' + OPS[op].sign + ' ' + cur[1] + ' =</span>' +
+      '<span class="wans">' + want + '</span>';
     $('feedback').className = 'feedback bad';
     $('card').className = 'card bad';
     setTimeout(nextQuestion, 1500);
@@ -346,6 +391,17 @@ document.addEventListener('keydown', function (e) {
   if (/^[0-9]$/.test(e.key)) { if (entry.length < 2) setEntry(entry + e.key); }
   else if (e.key === 'Enter') submit();
   else if (e.key === 'Backspace') { e.preventDefault(); setEntry(entry.slice(0, -1)); }
+});
+$('ops').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  var next = b.dataset.op;
+  if (next === op) return;
+  op = next;
+  FACTS = OPS[op].build();
+  Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) {
+    x.className = x.dataset.op === op ? 'on' : '';
+  });
+  restart();                       // a new operation is a new 50-question test
 });
 $('again').addEventListener('click', restart);
 $('sound').addEventListener('click', function () {
