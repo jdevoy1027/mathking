@@ -150,7 +150,7 @@
   /* celebration layer */
   #fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:40}
   .burst{position:fixed;inset:0;z-index:41;display:flex;align-items:center;
-         justify-content:center;pointer-events:none;padding:20px}
+         justify-content:center;padding:20px;cursor:pointer}
   .burst[hidden]{display:none}
   .burst-msg{
     background:rgba(255,255,255,.96);border-radius:22px;padding:20px 26px;text-align:center;
@@ -159,6 +159,8 @@
     animation:pop .4s cubic-bezier(.2,1.4,.4,1)
   }
   @keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+  .tapskip{margin-top:9px;font-size:12px;font-weight:700;color:var(--muted);
+           letter-spacing:.04em;text-transform:uppercase}
 
   /* flashing star on a perfect score */
   .bigstar{font-size:clamp(46px,11vh,92px);line-height:1;
@@ -490,8 +492,8 @@ function submit() {
     $('feedback').innerHTML = '✔ Correct!';
     $('feedback').className = 'feedback ok';
     $('card').className = 'card ok';
-    if (correct % 10 === 0 && correct < TOTAL_QUESTIONS) {
-      milestone(correct);                      // 10, 20, 30, 40
+    if (correct % 10 === 0) {
+      milestone(correct);                      // 10, 20, 30, 40, 50
     } else {
       setTimeout(nextQuestion, 700);
     }
@@ -508,16 +510,31 @@ function submit() {
   paint();
 }
 
-// 10 / 20 / 30 / 40 right: fireworks, a message, then carry on
+// Every multiple of ten right: guitar break, fireworks, message. The last one
+// lands on question 50, so nextQuestion() rolls straight into finish().
+var msTimer = null, msDone = null;
 function milestone(n) {
-  fireworks(2600);
-  $('burstMsg').innerHTML = 'Great job! ' + n + ' right.<br>Keep going!';
+  var last = (n >= TOTAL_QUESTIONS);
+  var ms = guitarRiff() || 2600;
+  fireworks(ms);
+  $('burstMsg').innerHTML = last
+    ? '<span class="bigstar">⭐</span><br>Great job! ' + n + ' right.'
+    : 'Great job! ' + n + ' right.<br>Keep going!' +
+      '<div class="tapskip">tap to keep going</div>';
   $('burst').hidden = false;
-  setTimeout(function () {
+  msDone = function () {
+    if (!msDone) return;
+    msDone = null;
+    clearTimeout(msTimer);
     $('burst').hidden = true;
     nextQuestion();
-  }, 2600);
+  };
+  msTimer = setTimeout(msDone, ms);
 }
+// let an impatient student move on early
+document.getElementById('burst').addEventListener('click', function () {
+  if (msDone) msDone();
+});
 
 function finish() {
   finished = true;
@@ -532,11 +549,9 @@ function finish() {
   $('bar').style.width = '100%';
 
   if (correct === TOTAL_QUESTIONS) {
-    // perfect: flashing star and the guitar break
+    // the 50-right milestone already played the guitar; just hold the star
     $('stars').innerHTML = '<span class="bigstar">⭐</span>';
     $('finalSub').textContent = 'Perfect score — every one right!';
-    var ms = guitarRiff() || 3000;
-    fireworks(ms);
   } else {
     $('stars').textContent = '⭐'.repeat(s);
     fanfare();
@@ -554,6 +569,7 @@ function paint() {
 }
 
 function restart() {
+  clearTimeout(msTimer); msDone = null;
   $('burst').hidden = true;
   parts.length = 0;
   if (fxCtx) fxCtx.clearRect(0, 0, innerWidth, innerHeight);
