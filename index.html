@@ -365,57 +365,59 @@ function pop() {
   src.connect(f); f.connect(g); g.connect(a.destination); src.start(t);
 }
 
-// ---------- original rock'n'roll riff (NOT a copyrighted melody) ----------
-// Overdriven double-stops over a I-IV-V turnaround in A, four bars at ~168bpm.
-function overdrive(a) {
-  var ws = a.createWaveShaper(), n = 1024, c = new Float32Array(n), k = 22;
-  for (var i = 0; i < n; i++) {
-    var x = (i * 2) / n - 1;
-    c[i] = ((1 + k) * x) / (1 + k * Math.abs(x));
-  }
-  ws.curve = c; ws.oversample = '4x';
-  return ws;
-}
-function pluck(a, freq, at, dur, gain, bus) {
-  var o = a.createOscillator(), g = a.createGain();
-  o.type = 'sawtooth';
-  o.frequency.setValueAtTime(freq, at);
+// ---------- Mendelssohn, Wedding March (1842) — public domain ----------
+// The opening trumpet fanfare from A Midsummer Night's Dream, Op.61 No.9, in C
+// major: repeated notes in dotted rhythm climbing C -> E -> G, resolving on a
+// full C chord. Synthesised as brass rather than sampled.
+function brass(a, freq, at, dur, gain, bus) {
+  var o1 = a.createOscillator(), o2 = a.createOscillator(), g = a.createGain();
+  o1.type = 'sawtooth'; o2.type = 'square';
+  o1.frequency.setValueAtTime(freq, at);
+  o2.frequency.setValueAtTime(freq * 1.005, at);       // slight detune = section, not solo
+  var f = a.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.setValueAtTime(1200, at);                 // brass "blat" as the note speaks
+  f.frequency.linearRampToValueAtTime(4200, at + 0.05);
+  f.frequency.linearRampToValueAtTime(2600, at + dur);
   g.gain.setValueAtTime(0.0001, at);
-  g.gain.exponentialRampToValueAtTime(gain, at + 0.012);
+  g.gain.exponentialRampToValueAtTime(gain, at + 0.03);
+  g.gain.setValueAtTime(gain, at + dur * 0.65);
   g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
-  o.connect(g); g.connect(bus);
-  o.start(at); o.stop(at + dur + 0.05);
+  o1.connect(f); o2.connect(f); f.connect(g); g.connect(bus);
+  o1.start(at); o2.start(at);
+  o1.stop(at + dur + 0.05); o2.stop(at + dur + 0.05);
 }
-function guitarRiff() {
+
+function guitarRiff() {          // name kept; now plays the Wedding March fanfare
   var a = audio(); if (!a || !soundOn) return 0;
   var t = a.currentTime + 0.05;
-  var bus = a.createGain(), drive = overdrive(a), tone = a.createBiquadFilter();
-  tone.type = 'lowpass'; tone.frequency.setValueAtTime(3200, t);
-  bus.gain.setValueAtTime(0.14, t);
-  bus.connect(drive); drive.connect(tone); tone.connect(a.destination);
+  var bus = a.createGain();
+  bus.gain.setValueAtTime(0.13, t);
+  bus.connect(a.destination);
 
-  var bpm = 168, beat = 60 / bpm, sw = beat * 0.66;   // shuffle
-  var N = { A3:220.0, C4:261.6, D4:293.7, E4:329.6, G4:392.0, A4:440.0,
-            B4:493.9, C5:523.3, D5:587.3, E5:659.3, G5:784.0, A5:880.0 };
-  // [beat offset, [freqs], duration in beats]
-  var riff = [
-    [0.0,[N.A4,N.E5],0.5],[0.66,[N.A4,N.E5],0.34],[1.0,[N.C5,N.G5],0.5],
-    [1.66,[N.A4,N.E5],0.34],[2.0,[N.D5,N.A5],0.5],[2.66,[N.C5,N.G5],0.34],
-    [3.0,[N.A4,N.E5],0.9],
-    [4.0,[N.D4,N.A4],0.5],[4.66,[N.D4,N.A4],0.34],[5.0,[N.G4,N.D5],0.5],
-    [5.66,[N.D4,N.A4],0.34],[6.0,[N.A4,N.E5],0.9],[7.0,[N.G4,N.D5],0.9],
-    [8.0,[N.E4,N.B4],0.5],[8.66,[N.G4,N.D5],0.34],[9.0,[N.A4,N.E5],0.5],
-    [9.66,[N.C5,N.G5],0.34],[10.0,[N.D5,N.A5],0.5],[10.66,[N.E5,N.B4],0.34],
-    [11.0,[N.E5,N.B4],0.9],
-    [12.0,[N.A4,N.E5],0.4],[12.5,[N.C5,N.G5],0.4],[13.0,[N.D5,N.A5],0.4],
-    [13.5,[N.E5,N.B4],0.4],
-    [14.0,[N.A3,N.A4,N.E5,N.A5],2.0]                 // final ringing chord
+  var bpm = 108, beat = 60 / bpm;
+  var N = { C5:523.25, E5:659.25, G5:783.99, C6:1046.50, G4:392.00, E4:329.63, C4:261.63 };
+  // [beat offset, freq(s), length in beats] — dotted-eighth / sixteenth pairs
+  var d = 0.75, sh = 0.25;                              // dotted eighth, sixteenth
+  var m = [
+    // bar 1 — fanfare on C
+    [0.00,[N.C5],d],[0.75,[N.C5],sh],[1.00,[N.C5],d],[1.75,[N.C5],sh],
+    [2.00,[N.C5],1.0],[3.00,[N.C5],1.0],
+    // bar 2 — lift to E
+    [4.00,[N.C5],d],[4.75,[N.C5],sh],[5.00,[N.C5],d],[5.75,[N.C5],sh],
+    [6.00,[N.E5],2.0],
+    // bar 3 — lift to G
+    [8.00,[N.E5],d],[8.75,[N.E5],sh],[9.00,[N.E5],d],[9.75,[N.E5],sh],
+    [10.00,[N.G5],2.0],
+    // bar 4 — arrival, full C major
+    [12.00,[N.G5],d],[12.75,[N.G5],sh],[13.00,[N.G5],d],[13.75,[N.G5],sh],
+    [14.00,[N.C4,N.E4,N.G4,N.C5,N.E5,N.C6],2.2]
   ];
-  riff.forEach(function (ev) {
+  m.forEach(function (ev) {
     var at = t + ev[0] * beat;
-    ev[1].forEach(function (f) { pluck(a, f, at, ev[2] * beat, 0.5, bus); });
+    ev[1].forEach(function (f) { brass(a, f, at, ev[2] * beat * 0.92, 0.42, bus); });
   });
-  return (16 * beat + 0.4) * 1000;                    // ms until it finishes
+  return (16.2 * beat + 0.4) * 1000;
 }
 
 // ---------- questions ----------
