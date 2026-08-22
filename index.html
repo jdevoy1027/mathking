@@ -147,10 +147,35 @@
                border-radius:18px;background:#8b7cf6;color:#fff;cursor:pointer}
   .stars{font-size:clamp(22px,4.4vh,34px);letter-spacing:4px;margin:2px 0 6px}
 
-  @media (prefers-reduced-motion: reduce){ .card,.bar i{transition:none} }
+  /* celebration layer */
+  #fx{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:40}
+  .burst{position:fixed;inset:0;z-index:41;display:flex;align-items:center;
+         justify-content:center;pointer-events:none;padding:20px}
+  .burst[hidden]{display:none}
+  .burst-msg{
+    background:rgba(255,255,255,.96);border-radius:22px;padding:20px 26px;text-align:center;
+    box-shadow:0 16px 50px rgba(40,20,80,.35);font-weight:800;color:var(--ink);
+    font-size:clamp(18px,3.4vh,28px);line-height:1.25;letter-spacing:-.02em;
+    animation:pop .4s cubic-bezier(.2,1.4,.4,1)
+  }
+  @keyframes pop{from{transform:scale(.6);opacity:0}to{transform:scale(1);opacity:1}}
+
+  /* flashing star on a perfect score */
+  .bigstar{font-size:clamp(46px,11vh,92px);line-height:1;
+           animation:flash .45s steps(1,end) infinite}
+  @keyframes flash{50%{opacity:.15;transform:scale(.88)}}
+
+  @media (prefers-reduced-motion: reduce){
+    .card,.bar i{transition:none}
+    .burst-msg{animation:none}
+    .bigstar{animation:none}
+  }
 </style>
 </head>
 <body>
+<canvas id="fx" aria-hidden="true"></canvas>
+<div class="burst" id="burst" hidden><div class="burst-msg" id="burstMsg"></div></div>
+
 <div class="wrap">
 
   <header>
@@ -268,6 +293,129 @@ function fanfare() {
   });
 }
 
+// ---------- fireworks ----------
+var fxCanvas = document.getElementById('fx'), fxCtx = fxCanvas.getContext('2d');
+var parts = [], fxRunning = false, reduceMotion = false;
+try { reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (e) {}
+
+function sizeFx() {
+  var d = window.devicePixelRatio || 1;
+  fxCanvas.width = Math.floor(innerWidth * d);
+  fxCanvas.height = Math.floor(innerHeight * d);
+  fxCtx.setTransform(d, 0, 0, d, 0, 0);
+}
+sizeFx();
+window.addEventListener('resize', sizeFx);
+
+var FX_HUES = [45, 340, 265, 195, 120, 15];
+function shell(x, y, hue) {
+  var n = 46 + Math.floor(Math.random() * 22);
+  for (var i = 0; i < n; i++) {
+    var a = (Math.PI * 2 * i) / n + Math.random() * 0.2;
+    var v = 2.2 + Math.random() * 3.4;
+    parts.push({ x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+                 life: 1, hue: hue + (Math.random() * 30 - 15),
+                 size: 1.8 + Math.random() * 2.2 });
+  }
+}
+function fireworks(ms) {
+  if (reduceMotion) return;
+  var end = performance.now() + ms, next = 0;
+  if (!fxRunning) { fxRunning = true; requestAnimationFrame(step); }
+  function step(t) {
+    fxCtx.clearRect(0, 0, innerWidth, innerHeight);
+    if (t < end && t > next) {
+      shell(innerWidth * (0.15 + Math.random() * 0.7),
+            innerHeight * (0.18 + Math.random() * 0.42),
+            FX_HUES[Math.floor(Math.random() * FX_HUES.length)]);
+      next = t + 260 + Math.random() * 240;
+      pop();
+    }
+    for (var i = parts.length - 1; i >= 0; i--) {
+      var p = parts[i];
+      p.x += p.vx; p.y += p.vy; p.vy += 0.055; p.vx *= 0.985; p.vy *= 0.985;
+      p.life -= 0.011;
+      if (p.life <= 0) { parts.splice(i, 1); continue; }
+      fxCtx.globalAlpha = Math.max(0, p.life);
+      fxCtx.fillStyle = 'hsl(' + p.hue + ',95%,' + (55 + p.life * 25) + '%)';
+      fxCtx.beginPath();
+      fxCtx.arc(p.x, p.y, p.size * p.life, 0, Math.PI * 2);
+      fxCtx.fill();
+    }
+    fxCtx.globalAlpha = 1;
+    if (t < end || parts.length) requestAnimationFrame(step);
+    else { fxRunning = false; fxCtx.clearRect(0, 0, innerWidth, innerHeight); }
+  }
+}
+
+// firework report: filtered noise burst
+function pop() {
+  var a = audio(); if (!a || !soundOn) return;
+  var t = a.currentTime, dur = 0.4;
+  var buf = a.createBuffer(1, Math.floor(a.sampleRate * dur), a.sampleRate);
+  var d = buf.getChannelData(0);
+  for (var i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length);
+  var src = a.createBufferSource(); src.buffer = buf;
+  var f = a.createBiquadFilter(); f.type = 'bandpass';
+  f.frequency.setValueAtTime(900, t); f.frequency.exponentialRampToValueAtTime(180, t + dur);
+  var g = a.createGain();
+  g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+  src.connect(f); f.connect(g); g.connect(a.destination); src.start(t);
+}
+
+// ---------- original rock'n'roll riff (NOT a copyrighted melody) ----------
+// Overdriven double-stops over a I-IV-V turnaround in A, four bars at ~168bpm.
+function overdrive(a) {
+  var ws = a.createWaveShaper(), n = 1024, c = new Float32Array(n), k = 22;
+  for (var i = 0; i < n; i++) {
+    var x = (i * 2) / n - 1;
+    c[i] = ((1 + k) * x) / (1 + k * Math.abs(x));
+  }
+  ws.curve = c; ws.oversample = '4x';
+  return ws;
+}
+function pluck(a, freq, at, dur, gain, bus) {
+  var o = a.createOscillator(), g = a.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(freq, at);
+  g.gain.setValueAtTime(0.0001, at);
+  g.gain.exponentialRampToValueAtTime(gain, at + 0.012);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + dur);
+  o.connect(g); g.connect(bus);
+  o.start(at); o.stop(at + dur + 0.05);
+}
+function guitarRiff() {
+  var a = audio(); if (!a || !soundOn) return 0;
+  var t = a.currentTime + 0.05;
+  var bus = a.createGain(), drive = overdrive(a), tone = a.createBiquadFilter();
+  tone.type = 'lowpass'; tone.frequency.setValueAtTime(3200, t);
+  bus.gain.setValueAtTime(0.14, t);
+  bus.connect(drive); drive.connect(tone); tone.connect(a.destination);
+
+  var bpm = 168, beat = 60 / bpm, sw = beat * 0.66;   // shuffle
+  var N = { A3:220.0, C4:261.6, D4:293.7, E4:329.6, G4:392.0, A4:440.0,
+            B4:493.9, C5:523.3, D5:587.3, E5:659.3, G5:784.0, A5:880.0 };
+  // [beat offset, [freqs], duration in beats]
+  var riff = [
+    [0.0,[N.A4,N.E5],0.5],[0.66,[N.A4,N.E5],0.34],[1.0,[N.C5,N.G5],0.5],
+    [1.66,[N.A4,N.E5],0.34],[2.0,[N.D5,N.A5],0.5],[2.66,[N.C5,N.G5],0.34],
+    [3.0,[N.A4,N.E5],0.9],
+    [4.0,[N.D4,N.A4],0.5],[4.66,[N.D4,N.A4],0.34],[5.0,[N.G4,N.D5],0.5],
+    [5.66,[N.D4,N.A4],0.34],[6.0,[N.A4,N.E5],0.9],[7.0,[N.G4,N.D5],0.9],
+    [8.0,[N.E4,N.B4],0.5],[8.66,[N.G4,N.D5],0.34],[9.0,[N.A4,N.E5],0.5],
+    [9.66,[N.C5,N.G5],0.34],[10.0,[N.D5,N.A5],0.5],[10.66,[N.E5,N.B4],0.34],
+    [11.0,[N.E5,N.B4],0.9],
+    [12.0,[N.A4,N.E5],0.4],[12.5,[N.C5,N.G5],0.4],[13.0,[N.D5,N.A5],0.4],
+    [13.5,[N.E5,N.B4],0.4],
+    [14.0,[N.A3,N.A4,N.E5,N.A5],2.0]                 // final ringing chord
+  ];
+  riff.forEach(function (ev) {
+    var at = t + ev[0] * beat;
+    ev[1].forEach(function (f) { pluck(a, f, at, ev[2] * beat, 0.5, bus); });
+  });
+  return (16 * beat + 0.4) * 1000;                    // ms until it finishes
+}
+
 // ---------- questions ----------
 // Each op stores [left, right, answer]. Subtraction and division are built as the
 // exact inverses of the addition and multiplication sets, so a student meets the
@@ -342,7 +490,11 @@ function submit() {
     $('feedback').innerHTML = '✔ Correct!';
     $('feedback').className = 'feedback ok';
     $('card').className = 'card ok';
-    setTimeout(nextQuestion, 700);
+    if (correct % 10 === 0 && correct < TOTAL_QUESTIONS) {
+      milestone(correct);                      // 10, 20, 30, 40
+    } else {
+      setTimeout(nextQuestion, 700);
+    }
   } else {
     wrong++;
     horn();
@@ -356,6 +508,17 @@ function submit() {
   paint();
 }
 
+// 10 / 20 / 30 / 40 right: fireworks, a message, then carry on
+function milestone(n) {
+  fireworks(2600);
+  $('burstMsg').innerHTML = 'Great job! ' + n + ' right.<br>Keep going!';
+  $('burst').hidden = false;
+  setTimeout(function () {
+    $('burst').hidden = true;
+    nextQuestion();
+  }, 2600);
+}
+
 function finish() {
   finished = true;
   $('quiz').style.display = 'none';
@@ -365,10 +528,19 @@ function finish() {
   var pct = Math.round(correct / TOTAL_QUESTIONS * 100);
   $('finalSub').textContent = pct + '% · ' + correct + ' correct, ' + wrong + ' incorrect';
   var s = pct >= 90 ? 5 : pct >= 75 ? 4 : pct >= 60 ? 3 : pct >= 40 ? 2 : 1;
-  $('stars').textContent = '⭐'.repeat(s);
   $('qcount').textContent = 'All ' + TOTAL_QUESTIONS + ' questions answered';
   $('bar').style.width = '100%';
-  fanfare();
+
+  if (correct === TOTAL_QUESTIONS) {
+    // perfect: flashing star and the guitar break
+    $('stars').innerHTML = '<span class="bigstar">⭐</span>';
+    $('finalSub').textContent = 'Perfect score — every one right!';
+    var ms = guitarRiff() || 3000;
+    fireworks(ms);
+  } else {
+    $('stars').textContent = '⭐'.repeat(s);
+    fanfare();
+  }
 }
 
 function paint() {
@@ -382,6 +554,9 @@ function paint() {
 }
 
 function restart() {
+  $('burst').hidden = true;
+  parts.length = 0;
+  if (fxCtx) fxCtx.clearRect(0, 0, innerWidth, innerHeight);
   correct = wrong = asked = 0;
   finished = false; cur = null;
   $('quiz').style.display = '';
