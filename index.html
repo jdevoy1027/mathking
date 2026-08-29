@@ -2,7 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, minimum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>MathKing — Addition Practice</title>
 <meta name="description" content="Practise single-digit addition, 1 through 9. 50 questions.">
 <style>
@@ -13,7 +16,11 @@
     --pad:#fff; --padline:#e2ddf0;
   }
   *{box-sizing:border-box}
-  html{-webkit-text-size-adjust:100%}
+  html{
+    -webkit-text-size-adjust:100%;   /* stop Safari inflating text in landscape */
+    text-size-adjust:100%;
+    touch-action:manipulation;       /* kills the double-tap-to-zoom gesture */
+  }
   html{height:100%}
   body{
     margin:0;
@@ -22,6 +29,8 @@
     font:16px/1.5 ui-rounded,"SF Pro Rounded",ui-sans-serif,-apple-system,
          BlinkMacSystemFont,"Segoe UI",Inter,Roboto,Helvetica,Arial,sans-serif;
     -webkit-font-smoothing:antialiased;-webkit-tap-highlight-color:transparent;
+    touch-action:manipulation;
+    -webkit-user-select:none;user-select:none;   /* no text-selection loupe */
     background:linear-gradient(160deg,#ffd86b 0%,#ff8fb1 38%,#8b7cf6 72%,#4ec5f1 100%);
     background-attachment:fixed;
     display:flex;flex-direction:column;align-items:center;
@@ -124,6 +133,7 @@
   .pad{display:grid;grid-template-columns:repeat(3,1fr);grid-template-rows:repeat(4,1fr);
        gap:clamp(5px,1vh,10px);margin-top:clamp(6px,1.2vh,14px);flex:1;min-height:0}
   .pad button{
+    touch-action:manipulation;
     font:inherit;font-size:clamp(18px,3.2vh,26px);font-weight:800;
     font-variant-numeric:tabular-nums;padding:0;min-height:0;
     border:2px solid var(--padline);background:var(--pad);
@@ -310,6 +320,27 @@ function fanfare() {
     o.connect(g); g.connect(a.destination); o.start(s); o.stop(s + 0.45);
   });
 }
+
+// ---------- lock the zoom ----------
+// iOS Safari has ignored user-scalable=no since iOS 10, so the meta tag alone is
+// not enough. WebKit's gesture events are still cancellable, and cancelling them
+// stops pinch-zoom. Double-tap zoom is handled by touch-action:manipulation in CSS.
+['gesturestart', 'gesturechange', 'gestureend'].forEach(function (ev) {
+  document.addEventListener(ev, function (e) { e.preventDefault(); }, { passive: false });
+});
+
+// Belt and braces: a second touch point starting means a pinch is beginning.
+document.addEventListener('touchstart', function (e) {
+  if (e.touches.length > 1) e.preventDefault();
+}, { passive: false });
+
+// If a zoom happens anyway (accessibility zoom, or a browser that ignores the
+// above), snap the page back rather than leaving the layout half off-screen.
+document.addEventListener('touchend', function () {
+  if (window.visualViewport && window.visualViewport.scale > 1.01) {
+    window.scrollTo(0, 0);
+  }
+}, { passive: true });
 
 // ---------- fireworks ----------
 var fxCanvas = document.getElementById('fx'), fxCtx = fxCanvas.getContext('2d');
