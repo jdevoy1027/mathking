@@ -58,6 +58,17 @@
   .card.ok{background:var(--okbg)}
   .card.bad{background:var(--badbg)}
 
+  .grades{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;
+          margin:0 0 clamp(5px,1vh,10px);flex:none}
+  .grades button{
+    font:inherit;font-size:clamp(12px,1.9vh,15px);font-weight:800;letter-spacing:.02em;
+    padding:clamp(5px,0.9vh,9px) 4px;border:2px solid var(--padline);background:var(--pad);
+    color:var(--muted);border-radius:12px;cursor:pointer
+  }
+  .grades button.on{background:#0f9d58;border-color:#0f9d58;color:#fff}
+  .grades button:active{transform:translateY(2px)}
+  .ops button[hidden]{display:none}
+
   .ops{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;
        margin:0 0 clamp(7px,1.4vh,18px);flex:none}
   .ops button{
@@ -198,6 +209,11 @@
   <div class="qcount" id="qcount">Question 1 of 50</div>
 
   <div class="card" id="card">
+
+    <div class="grades" id="grades" role="group" aria-label="Choose a grade level">
+      <button data-g="k1" class="on">K–1</button>
+      <button data-g="g12">1–2</button>
+    </div>
 
     <div class="ops" id="ops" role="group" aria-label="Choose an operation">
       <button data-op="add" class="on"><b>+</b><span>Add</span></button>
@@ -424,13 +440,28 @@ function guitarRiff() {          // name kept; now plays the Wedding March fanfa
 // Each op stores [left, right, answer]. Subtraction and division are built as the
 // exact inverses of the addition and multiplication sets, so a student meets the
 // same number pairs both ways round.
+// Grade level gates the fact sets. K-1 keeps every sum and every minuend in
+// single digits; 1-2 is the full range. Multiply and divide are hidden at K-1.
+var grade = 'k1';
+var GRADES = {
+  k1:  { maxSum: 9,  ops: ['add', 'sub'] },
+  g12: { maxSum: 18, ops: ['add', 'sub', 'mul', 'div'] }
+};
+
 var OPS = {
-  add: { sign: '+', build: function () {
-    var f = []; for (var a = 1; a <= 9; a++) for (var b = 1; b <= 9; b++) f.push([a, b, a + b]);
+  add: { sign: '+', build: function (lim) {
+    // a + b <= lim
+    var f = [];
+    for (var a = 1; a <= 9; a++)
+      for (var b = 1; b <= 9; b++)
+        if (a + b <= lim) f.push([a, b, a + b]);
     return f; } },
-  sub: { sign: '−', build: function () {
-    // (a+b) - b = a  ->  minuends 2..18, never negative
-    var f = []; for (var a = 1; a <= 9; a++) for (var b = 1; b <= 9; b++) f.push([a + b, b, a]);
+  sub: { sign: '−', build: function (lim) {
+    // (a+b) - b = a, minuend capped at lim so it is never negative
+    var f = [];
+    for (var a = 1; a <= 9; a++)
+      for (var b = 1; b <= 9; b++)
+        if (a + b <= lim) f.push([a + b, b, a]);
     return f; } },
   mul: { sign: '×', build: function () {
     var f = []; for (var a = 0; a <= 9; a++) for (var b = 0; b <= 9; b++) f.push([a, b, a * b]);
@@ -441,8 +472,10 @@ var OPS = {
     return f; } }
 };
 
+function buildFacts() { return OPS[op].build(GRADES[grade].maxSum); }
+
 var op = 'add';
-var FACTS = OPS[op].build();
+var FACTS;
 
 var cur = null, locked = false, finished = false;
 var entry = '';                       // the digits typed so far
@@ -601,15 +634,38 @@ document.addEventListener('keydown', function (e) {
   else if (e.key === 'Enter') submit();
   else if (e.key === 'Backspace') { e.preventDefault(); setEntry(entry.slice(0, -1)); }
 });
+function applyGrade() {
+  var allowed = GRADES[grade].ops;
+  Array.prototype.forEach.call($('ops').querySelectorAll('button'), function (b) {
+    var ok = allowed.indexOf(b.dataset.op) >= 0;
+    b.hidden = !ok;
+    b.className = (ok && b.dataset.op === op) ? 'on' : '';
+  });
+  $('ops').style.gridTemplateColumns = 'repeat(' + allowed.length + ',1fr)';
+  Array.prototype.forEach.call($('grades').querySelectorAll('button'), function (b) {
+    b.className = b.dataset.g === grade ? 'on' : '';
+  });
+}
+
+$('grades').addEventListener('click', function (e) {
+  var b = e.target.closest('button'); if (!b) return;
+  var next = b.dataset.g;
+  if (next === grade) return;
+  grade = next;
+  // an operation that is not offered at this level falls back to addition
+  if (GRADES[grade].ops.indexOf(op) < 0) op = 'add';
+  applyGrade();
+  FACTS = buildFacts();
+  restart();
+});
+
 $('ops').addEventListener('click', function (e) {
   var b = e.target.closest('button'); if (!b) return;
   var next = b.dataset.op;
-  if (next === op) return;
+  if (next === op || b.hidden) return;
   op = next;
-  FACTS = OPS[op].build();
-  Array.prototype.forEach.call(this.querySelectorAll('button'), function (x) {
-    x.className = x.dataset.op === op ? 'on' : '';
-  });
+  FACTS = buildFacts();
+  applyGrade();
   restart();                       // a new operation is a new 50-question test
 });
 $('again').addEventListener('click', restart);
@@ -620,6 +676,8 @@ $('sound').addEventListener('click', function () {
   if (soundOn) bell();
 });
 
+applyGrade();
+FACTS = buildFacts();
 nextQuestion();
 </script>
 </body>
